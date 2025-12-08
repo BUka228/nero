@@ -12,3 +12,5 @@ uv.lock
 
 data
 .DS_Store
+src/ingestion/sample_result.py
+.env
