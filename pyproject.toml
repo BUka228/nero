@@ -13,6 +13,7 @@ dependencies = [
     "mlx>=0.29.3",
     "mlx-lm>=0.28.4",
     "mlx-vlm>=0.0.11",
+    "numpy>=2.0.2",
     "pandas>=2.3.3",
     "pillow>=11.3.0",
     "plotly>=6.5.0",

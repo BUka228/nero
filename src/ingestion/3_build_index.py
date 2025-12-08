@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import torch
 import chromadb
 from pathlib import Path
@@ -38,6 +39,14 @@ class VectorIndexer:
             settings=Settings(anonymized_telemetry=False)
         )
 
+    def _format_passage(self, text: str) -> str:
+        if not text:
+            return ""
+        stripped = text.lstrip()
+        if stripped.lower().startswith("passage:"):
+            return text
+        return f"passage: {text}"
+
     def _batch_generator(self, data: List[Any], batch_size: int):
         """
         Генератор, который возвращает:
@@ -71,7 +80,7 @@ class VectorIndexer:
         collection = self.client.create_collection(name=collection_name)
 
         # Процесс по батчам
-        total_batches = (len(data) // BATCH_SIZE) + 1
+        total_batches = math.ceil(len(data) / BATCH_SIZE) if data else 0
         
         for batch, start_index in tqdm(self._batch_generator(data, BATCH_SIZE), total=total_batches):
             documents = []
@@ -84,7 +93,8 @@ class VectorIndexer:
                 global_idx = start_index + i
                 
                 # Формируем текст для поиска: "Роль: Текст"
-                text_content = f"{item['role']}: {item['content']}"
+                raw_text = f"{item['role']}: {item['content']}"
+                text_content = self._format_passage(raw_text)
                 
                 documents.append(text_content)
                 
@@ -102,7 +112,12 @@ class VectorIndexer:
 
             if documents:
                 # Генерируем векторы
-                embeddings = self.encoder.encode(documents, convert_to_numpy=True, show_progress_bar=False)
+                embeddings = self.encoder.encode(
+                    documents,
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                    normalize_embeddings=True,
+                )
                 
                 # Пишем в базу
                 collection.add(
@@ -135,7 +150,7 @@ class VectorIndexer:
         
         collection = self.client.create_collection(name=collection_name)
 
-        total_batches = (len(data) // BATCH_SIZE) + 1
+        total_batches = math.ceil(len(data) / BATCH_SIZE) if data else 0
 
         for batch, _ in tqdm(self._batch_generator(data, BATCH_SIZE), total=total_batches):
             documents = []
@@ -147,7 +162,9 @@ class VectorIndexer:
                 if not desc:
                     continue
 
-                documents.append(desc)
+                text_content = self._format_passage(desc)
+
+                documents.append(text_content)
                 metadatas.append({
                     "path": item.get("path", ""),
                     "type": item.get("type", "static")
@@ -155,7 +172,12 @@ class VectorIndexer:
                 ids.append(item.get("path")) # ID = путь к файлу
 
             if documents:
-                embeddings = self.encoder.encode(documents, convert_to_numpy=True, show_progress_bar=False)
+                embeddings = self.encoder.encode(
+                    documents,
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                    normalize_embeddings=True,
+                )
                 collection.add(
                     documents=documents,
                     embeddings=embeddings,
